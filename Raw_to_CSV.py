@@ -10,7 +10,6 @@ from scipy.integrate import trapezoid
 data_folder = os.getcwd()
 output_csv = os.path.join(data_folder, "LEMON_EEG.csv")
 
-# Bands EXACTLY matching your paper
 bands = {
     'delta': (0.5, 4),
     'theta': (4, 8),
@@ -27,13 +26,13 @@ def compute_bandpower(psd, freqs, fmin, fmax):
     power = trapezoid(psd_uV[:, idx_band], freqs[idx_band])
     return power
 
-# compute coherence (scaled *100) → PER EPOCH → average across epochs
+# compute coherence (scaled *100)
 def compute_coherence_epochs(epochs_data, sfreq, ch_names, band, fmin, fmax):
     n_channels = epochs_data.shape[1]
     n_epochs = epochs_data.shape[0]
     coh_features = {}
 
-    nperseg = min(256, epochs_data.shape[2])  # safe → 256 points
+    nperseg = min(256, epochs_data.shape[2])  
 
     for i, j in combinations(range(n_channels), 2):
         coh_band_values = []
@@ -44,7 +43,7 @@ def compute_coherence_epochs(epochs_data, sfreq, ch_names, band, fmin, fmax):
 
             if len(f[idx_band]) == 0:
                 band_coh = np.nan
-                print(f"WARNING: empty band {band} for COH → {ch_names[i]}-{ch_names[j]} (epoch {epoch_idx})")
+                print(f"empty band {band} for COH → {ch_names[i]}-{ch_names[j]} (epoch {epoch_idx})")
             else:
                 band_coh = np.mean(Cxy[idx_band]) * 100
 
@@ -58,10 +57,8 @@ def compute_coherence_epochs(epochs_data, sfreq, ch_names, band, fmin, fmax):
 
     return coh_features
 
-# MAIN LOOP
 all_subject_features = []
 
-# Loop through sub-XXXXXX folders
 for sub_id in os.listdir(data_folder):
     if not sub_id.startswith("sub-"):
         continue
@@ -70,7 +67,6 @@ for sub_id in os.listdir(data_folder):
     if not os.path.isdir(sub_path):
         continue
 
-    # Find .vhdr or .set
     vhdr_file = None
     set_file = None
 
@@ -88,7 +84,6 @@ for sub_id in os.listdir(data_folder):
             break
 
     if vhdr_file is None and set_file is None:
-        print(f"{sub_id}: skipped (no supported file found)")
         continue
 
     # Load
@@ -99,12 +94,10 @@ for sub_id in os.listdir(data_folder):
         elif set_file is not None:
             data = mne.io.read_raw_eeglab(set_file, preload=True)
     except Exception as e:
-        print(f"{sub_id}: skipped (error loading: {e})")
         continue
 
     # Skip if already epoched
     if isinstance(data, mne.Epochs):
-        print(f"{sub_id}: skipped (already epoched)")
         continue
 
     # Set reference (optional)
@@ -115,8 +108,6 @@ for sub_id in os.listdir(data_folder):
 
     # Filter 1-40 Hz
     data.filter(1., 40., method='iir', iir_params=dict(order=5, ftype='butter'))
-
-    # FIX EMPTY BAND ISSUE: Clear annotations!
     data.set_annotations(mne.Annotations([], [], []))
 
     # Create 2 s epochs
@@ -138,7 +129,7 @@ for sub_id in os.listdir(data_folder):
             key = f"PSD.{band}.{ch_name}"
             features[key] = val
 
-    # COH features — PER EPOCH
+    # COH features
     epochs_data = epochs.get_data()  # shape (n_epochs, n_channels, n_times)
     sfreq = data.info['sfreq']
 
